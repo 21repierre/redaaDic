@@ -31,12 +31,16 @@ enum UpdateState: Codable {
     case unkown, upToDate, updateAvailable
 }
 
-struct RedaaDictionary: Codable {
+class RedaaDictionary: Codable {
     
     private let dictionary: DictionaryJson
     private(set) var hasUpdate: UpdateState = UpdateState.unkown
     
-    public mutating func update(targetDir: URL, progress: Progress? = nil) throws {
+    private init(dictionary: DictionaryJson) {
+        self.dictionary = dictionary
+    }
+    
+    public func update(targetDir: URL, progress: Progress? = nil) throws {
         if hasUpdate == UpdateState.updateAvailable {
             guard let downloadUrl = self.dictionary.downloadUrl else {
                 return
@@ -78,7 +82,7 @@ struct RedaaDictionary: Codable {
         }
     }
     
-    public mutating func fetchUpdate() throws {
+    public func fetchUpdate() throws {
         guard let indexUrl = self.dictionary.indexUrl else {
             return
         }
