@@ -147,7 +147,7 @@ public class RedaaDictionary: Codable {
         if currentRevSplit.count != newRevSplit.count {
             throw "mismatch revisions"
         }
-        for i in 0...currentRevSplit.count {
+        for i in 0...currentRevSplit.count-1 {
             guard let currentI = Int(currentRevSplit[i]) else {
                 throw "invalid current revision"
             }
