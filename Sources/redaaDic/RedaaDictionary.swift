@@ -27,11 +27,11 @@ private struct DictionaryJson: Codable {
     let frequencyMode: String?
 }
 
-enum UpdateState: Codable {
+public enum UpdateState: Codable {
     case unkown, upToDate, updateAvailable
 }
 
-class RedaaDictionary: Codable {
+public class RedaaDictionary: Codable {
     
     private let dictionary: DictionaryJson
     private(set) var hasUpdate: UpdateState = UpdateState.unkown
