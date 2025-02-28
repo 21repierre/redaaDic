@@ -1,6 +1,6 @@
 //
 //  Dictionary.swift
-//  
+//
 //
 //  Created by Pierre on 2025/02/28.
 //
@@ -34,10 +34,56 @@ public enum UpdateState: Codable {
 public class RedaaDictionary: Codable {
     
     private let dictionary: DictionaryJson
-    private(set) var hasUpdate: UpdateState = UpdateState.unkown
+    public private(set) var hasUpdate: UpdateState = UpdateState.unkown
     
     private init(dictionary: DictionaryJson) {
         self.dictionary = dictionary
+    }
+    
+    public var title: String {
+        return dictionary.title
+    }
+    
+    
+    public var revision: String {
+        return dictionary.revision
+    }
+    public var sequenced: Bool {
+        return dictionary.sequenced
+    }
+    public var format: Int {
+        return dictionary.format
+    }
+    public var author: String? {
+        return dictionary.author
+    }
+    public var isUpdatable: Bool {
+        return dictionary.isUpdatable
+    }
+    
+    public var indexUrl: String? {
+        return dictionary.indexUrl
+    }
+    public var downloadUrl: String? {
+        return dictionary.downloadUrl
+    }
+    public var url: String? {
+        return dictionary.url
+    }
+    public var description: String? {
+        return dictionary.description
+    }
+    public var attribution: String? {
+        return dictionary.attribution
+    }
+    public var sourceLanguage: String? {
+        return dictionary.sourceLanguage
+    }
+    public var targetLanguage: String? {
+        return dictionary.targetLanguage
+    }
+    public var frequencyMode: String? {
+        return dictionary.frequencyMode
     }
     
     public func update(targetDir: URL, progress: Progress? = nil) throws {
