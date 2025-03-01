@@ -27,6 +27,17 @@ private struct DictionaryJson: Codable {
     let frequencyMode: String?
 }
 
+public struct TermJson {
+    public let term: String
+    public let reading: String
+    public let definitionTags: [String]
+    public let wordTypes: [WordType]
+    public let score: Int
+    public let definitions: [Any]
+    public let sequence: Int
+    public let termTags: [String]
+}
+
 public enum UpdateState: Codable {
     case unkown, upToDate, updateAvailable
 }
@@ -35,9 +46,12 @@ public class RedaaDictionary: ObservableObject {
     
     @Published private var dictionary: DictionaryJson
     @Published public private(set) var hasUpdate: UpdateState = .unkown
+    private var path: URL
+    public private(set) var terms: [TermJson] = []
     
-    private init(dictionary: DictionaryJson) {
+    private init(dictionary: DictionaryJson, path: URL) {
         self.dictionary = dictionary
+        self.path = path
     }
     
     public var title: String {
@@ -86,82 +100,6 @@ public class RedaaDictionary: ObservableObject {
         return dictionary.frequencyMode
     }
     
-    //    public func update(targetDir: URL, progress: Progress? = nil) throws {
-    //        if hasUpdate == UpdateState.updateAvailable {
-    //            guard let downloadUrl = self.dictionary.downloadUrl else {
-    //                return
-    //            }
-    //            guard let url = URL(string: downloadUrl) else {
-    //                return
-    //            }
-    //            let content = try Data(contentsOf: url)
-    //            let archive = try Archive(data: content, accessMode: .read)
-    //
-    //            var totalUnitCount = Int64(0)
-    //            if let progress = progress {
-    //                totalUnitCount = archive.reduce(0, { $0 + archive.totalUnitCountForReading($1) })
-    //                progress.totalUnitCount = totalUnitCount
-    //            }
-    //            let fileManager = FileManager()
-    //            let targetContent = try fileManager.contentsOfDirectory(at: targetDir, includingPropertiesForKeys: [])
-    //            for item in targetContent {
-    //                try fileManager.removeItem(at: item.standardized)
-    //            }
-    //
-    //            for item in archive {
-    //                let extractPath = targetDir.appendingPathComponent(item.path)
-    //                guard extractPath.isContained(in: targetDir) else {
-    //                    throw "path traversal"
-    //                }
-    //                let crc32: CRC32
-    //                if let progress = progress {
-    //                    let entryProgress = Progress(totalUnitCount: archive.totalUnitCountForReading(item))
-    //                    progress.addChild(entryProgress, withPendingUnitCount: entryProgress.totalUnitCount)
-    //                    crc32 = try archive.extract(item, to: extractPath, skipCRC32: false, progress: entryProgress)
-    //                } else {
-    //                    crc32 = try archive.extract(item, to: extractPath, skipCRC32: false)
-    //                }
-    //                guard crc32 == item.checksum else {
-    //                    throw "invalid checksum for file \(item.path)"
-    //                }
-    //            }
-    //        }
-    //    }
-    
-    //    public func fetchUpdate() throws {
-    //        guard let indexUrl = self.dictionary.indexUrl else {
-    //            return
-    //        }
-    //        guard let url = URL(string: indexUrl) else {
-    //            return
-    //        }
-    //        let content = try Data(contentsOf: url)
-    //        guard let json = try JSONSerialization.jsonObject(with: content, options: []) as? [String: Any] else {
-    //            return
-    //        }
-    //        guard let revision = json["revision"] as? String else {
-    //            return
-    //        }
-    //        let currentRevSplit = self.dictionary.revision.split(separator: ".")
-    //        let newRevSplit = revision.split(separator: ".")
-    //        if currentRevSplit.count != newRevSplit.count {
-    //            throw "mismatch revisions"
-    //        }
-    //        for i in 0...currentRevSplit.count-1 {
-    //            guard let currentI = Int(currentRevSplit[i]) else {
-    //                throw "invalid current revision"
-    //            }
-    //            guard let newI = Int(newRevSplit[i]) else {
-    //                throw "invalid new revision"
-    //            }
-    //            if newI > currentI {
-    //                self.hasUpdate = UpdateState.updateAvailable
-    //                return
-    //            }
-    //        }
-    //        self.hasUpdate = UpdateState.upToDate
-    //    }
-    
     @MainActor
     public func update(targetDir: URL, progress: Progress? = nil) async throws {
         guard hasUpdate == .updateAvailable,
@@ -189,7 +127,7 @@ public class RedaaDictionary: ObservableObject {
             for item in archive {
                 let extractPath = targetDir.appendingPathComponent(item.path)
                 guard extractPath.isContained(in: targetDir) else {
-                    throw "Path traversal error"
+                    throw "path traversal error"
                 }
                 let crc32: CRC32
                 if let progress = progress {
@@ -208,7 +146,7 @@ public class RedaaDictionary: ObservableObject {
                 self.hasUpdate = .upToDate
             }
         } catch {
-            print("Failed to update dictionary:", error)
+            print("failed to update dictionary:", error)
             throw error
         }
     }
@@ -245,15 +183,59 @@ public class RedaaDictionary: ObservableObject {
                 self.hasUpdate = .upToDate
             }
         } catch {
-            print("Failed to fetch update:", error)
+            print("failed to fetch update:", error)
         }
     }
     
     
     public static func loadFromJson(path: URL) throws -> RedaaDictionary{
-        let content = try Data(contentsOf: path)
+        let content = try Data(contentsOf: path.appending(component: "index.json"))
         let dic = try JSONDecoder().decode(DictionaryJson.self, from: content)
-        return RedaaDictionary(dictionary: dic)
+        return RedaaDictionary(dictionary: dic, path: path)
+    }
+    
+    public func loadContent() throws {
+        
+        // Load terms
+        var i = 1
+        while true {
+            let filename = "term_bank_\(i).json"
+            let filepath = self.path.appending(component: filename)
+            
+            guard let fileContent = try? Data(contentsOf: filepath) else {
+                break
+            }
+            let termsJson = try JSONSerialization.jsonObject(with: fileContent)
+            guard let termsJson = termsJson as? [[Any]] else {
+                throw "invalid file format"
+            }
+            
+            for t in termsJson {
+                guard let term = t[0] as? String,
+                      let reading = t[1] as? String,
+                      let wordTypesJson = t[3] as? String,
+                      let score = t[4] as? Int,
+                      let definitions = t[5] as? [Any],
+                      let sequence  = t[6] as? Int,
+                      let termTagsJson = t[7]  as? String
+                else {
+                    throw "invalid terms format"
+                }
+                let definitionTagsJson = t[2] as? String ?? ""
+                let definitionTags = definitionTagsJson.components(separatedBy: " ")
+                let termTags = termTagsJson.components(separatedBy: " ")
+                let wordTypesArray = wordTypesJson.components(separatedBy: " ")
+                let wordTypes = wordTypesArray.compactMap {
+                    WordType.fromString(s: $0)
+                }
+                
+                let termJson = TermJson(term: term, reading: reading, definitionTags: definitionTags, wordTypes: wordTypes, score: score, definitions: definitions, sequence: sequence, termTags: termTags)
+                
+                self.terms.append(termJson)
+            }
+            
+            i += 1
+        }
     }
     
 }
